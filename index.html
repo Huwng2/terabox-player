@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terabox Player - Ad-Free Video Streaming</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-play-circle"></i>
+                <h1>Terabox Player</h1>
+            </div>
+            <p class="subtitle">Stream Terabox videos instantly without ads</p>
+        </header>
+
+        <main class="main-content">
+            <div class="input-section">
+                <div class="input-container">
+                    <input 
+                        type="url" 
+                        id="teraboxUrl" 
+                        placeholder="Paste your Terabox link here..."
+                        class="url-input"
+                    >
+                    <button id="playBtn" class="play-button">
+                        <i class="fas fa-play"></i>
+                        Play Video
+                    </button>
+                </div>
+                <div class="loading" id="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Extracting video URL...</span>
+                </div>
+                <div class="error-message" id="errorMessage">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="errorText"></span>
+                </div>
+            </div>
+
+            <div class="video-section" id="videoSection">
+                <div class="video-container">
+                    <video 
+                        id="videoPlayer" 
+                        controls 
+                        preload="metadata"
+                        class="video-player"
+                        poster="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQwIiBoZWlnaHQ9IjM2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkNsaWNrIFBsYXkgVmlkZW8gdG8gc3RhcnQgc3RyZWFtaW5nPC90ZXh0Pjwvc3ZnPg=="
+                    >
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="video-info" id="videoInfo">
+                        <h3 id="videoTitle">Ready to play</h3>
+                        <p id="videoDescription">Enter a Terabox URL above to start streaming</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 Terabox Player - For educational purposes only</p>
+            <div class="disclaimer">
+                <small>This tool is for personal use only. Please respect content creators and copyright laws.</small>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
