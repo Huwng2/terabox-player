@@ -52,6 +52,7 @@ class TeraboxPlayer {
 Examples:
 • https://terabox.com/s/1abc123def
 • https://www.terabox.app/s/1xyz789abc
+• https://www.terabox.club/wap/share/filelist?surl=abc123
 • https://1024tera.com/s/1qwe456rty
 
 Your URL: ${url}`);
@@ -87,7 +88,7 @@ Your URL: ${url}`);
         // More comprehensive domain patterns for Terabox
         const teraboxPatterns = [
             // Main domains
-            /^https?:\/\/(www\.)?terabox\.(com|app)/i,
+            /^https?:\/\/(www\.)?terabox\.(com|app|club)/i,
             /^https?:\/\/(www\.)?1024tera\.com/i,
             /^https?:\/\/(www\.)?mirrobox\.com/i,
             /^https?:\/\/(www\.)?nephobox\.com/i,
@@ -122,6 +123,8 @@ Your URL: ${url}`);
             const hasTeraboxStructure = url.includes('/s/') || 
                                       url.includes('surl=') || 
                                       url.includes('/file/') ||
+                                      url.includes('/wap/share/filelist') ||
+                                      url.includes('/wap/share/') ||
                                       url.includes('terabox') ||
                                       url.includes('tera');
             
@@ -136,7 +139,7 @@ Your URL: ${url}`);
         } catch (error) {
             console.error('URL validation error:', error);
             // Fallback: check if URL contains terabox-related keywords
-            return /terabox|1024tera|mirrobox|nephobox|freeterabox|4funbox|momerybox|tibibox/i.test(url);
+            return /terabox\.club|terabox\.com|terabox\.app|1024tera|mirrobox|nephobox|freeterabox|4funbox|momerybox|tibibox|terabox/i.test(url);
         }
     }
 
@@ -299,16 +302,21 @@ Your URL: ${url}`);
             /\/s\/([a-zA-Z0-9_-]+)/,
             /surl=([a-zA-Z0-9_-]+)/,
             /\/file\/([a-zA-Z0-9_-]+)/,
-            /fid=([a-zA-Z0-9_-]+)/
+            /fid=([a-zA-Z0-9_-]+)/,
+            // Handle filelist URLs
+            /\/wap\/share\/filelist\?surl=([a-zA-Z0-9_-]+)/,
+            /\/share\/filelist\?surl=([a-zA-Z0-9_-]+)/
         ];
 
         for (const pattern of patterns) {
             const match = url.match(pattern);
             if (match && match[1]) {
+                console.log('Extracted file ID:', match[1], 'using pattern:', pattern);
                 return match[1];
             }
         }
 
+        console.log('No file ID extracted from URL:', url);
         return null;
     }
 
