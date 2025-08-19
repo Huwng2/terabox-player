@@ -158,6 +158,10 @@ body {
     background: rgba(231, 76, 60, 0.2);
     color: #e74c3c;
     border: 1px solid rgba(231, 76, 60, 0.3);
+    white-space: pre-line;
+    text-align: left;
+    max-width: 100%;
+    word-wrap: break-word;
 }
 
 .loading.show, .error-message.show {

@@ -44,8 +44,17 @@ class TeraboxPlayer {
             return;
         }
 
+        console.log('Processing URL:', url);
+
         if (!this.isValidTeraboxUrl(url)) {
-            this.showError('Please enter a valid Terabox URL');
+            this.showError(`Please enter a valid Terabox URL. 
+            
+Examples:
+• https://terabox.com/s/1abc123def
+• https://www.terabox.app/s/1xyz789abc
+• https://1024tera.com/s/1qwe456rty
+
+Your URL: ${url}`);
             return;
         }
 
@@ -57,31 +66,77 @@ class TeraboxPlayer {
             await this.playVideo(videoData);
         } catch (error) {
             console.error('Error extracting video:', error);
-            this.showError(error.message || 'Failed to extract video URL. Please try again.');
+            let errorMessage = error.message || 'Failed to extract video URL. Please try again.';
+            
+            // Provide more specific error messages
+            if (error.message.includes('CORS')) {
+                errorMessage = 'Network error: Unable to access Terabox. Please try again or use a different URL.';
+            } else if (error.message.includes('404') || error.message.includes('not found')) {
+                errorMessage = 'Video not found. Please check if the URL is correct and the file is still available.';
+            } else if (error.message.includes('private') || error.message.includes('access')) {
+                errorMessage = 'This video appears to be private or requires authentication. Please try a public URL.';
+            }
+            
+            this.showError(errorMessage);
         } finally {
             this.showLoading(false);
         }
     }
 
     isValidTeraboxUrl(url) {
-        const teraboxDomains = [
-            'terabox.com', 'www.terabox.com',
-            'terabox.app', 'www.terabox.app', 
-            '1024tera.com', 'www.1024tera.com',
-            'mirrobox.com', 'www.mirrobox.com',
-            'nephobox.com', 'www.nephobox.com',
-            'teraboxapp.com', 'www.teraboxapp.com',
-            'freeterabox.com', 'www.freeterabox.com',
-            '4funbox.com', 'www.4funbox.com',
-            'momerybox.com', 'www.momerybox.com',
-            'tibibox.com', 'www.tibibox.com'
+        // More comprehensive domain patterns for Terabox
+        const teraboxPatterns = [
+            // Main domains
+            /^https?:\/\/(www\.)?terabox\.(com|app)/i,
+            /^https?:\/\/(www\.)?1024tera\.com/i,
+            /^https?:\/\/(www\.)?mirrobox\.com/i,
+            /^https?:\/\/(www\.)?nephobox\.com/i,
+            /^https?:\/\/(www\.)?teraboxapp\.com/i,
+            /^https?:\/\/(www\.)?freeterabox\.com/i,
+            /^https?:\/\/(www\.)?4funbox\.(com|co)/i,
+            /^https?:\/\/(www\.)?momerybox\.com/i,
+            /^https?:\/\/(www\.)?tibibox\.com/i,
+            // Additional patterns
+            /^https?:\/\/.*terabox/i,
+            /^https?:\/\/.*\.terabox/i
         ];
+
+        // Basic URL format check
+        if (!url || typeof url !== 'string') {
+            return false;
+        }
+
+        // Check if it looks like a URL
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            // Try to add https:// if missing
+            url = 'https://' + url;
+        }
 
         try {
             const urlObj = new URL(url);
-            return teraboxDomains.some(domain => urlObj.hostname === domain);
-        } catch {
-            return false;
+            
+            // Check against patterns
+            const isValidDomain = teraboxPatterns.some(pattern => pattern.test(url));
+            
+            // Additional check for common Terabox URL structures
+            const hasTeraboxStructure = url.includes('/s/') || 
+                                      url.includes('surl=') || 
+                                      url.includes('/file/') ||
+                                      url.includes('terabox') ||
+                                      url.includes('tera');
+            
+            console.log('URL validation:', {
+                url: url,
+                hostname: urlObj.hostname,
+                isValidDomain: isValidDomain,
+                hasTeraboxStructure: hasTeraboxStructure
+            });
+            
+            return isValidDomain || hasTeraboxStructure;
+        } catch (error) {
+            console.error('URL validation error:', error);
+            // Fallback: check if URL contains terabox-related keywords
+            return /terabox|1024tera|mirrobox|nephobox|freeterabox|4funbox|momerybox|tibibox/i.test(url);
         }
     }
 
