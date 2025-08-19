@@ -204,7 +204,7 @@ Your URL: ${url}`);
     }
 
     async extractUsingSimplifiedMethod(teraboxUrl) {
-        console.log('🔧 Trying simplified extraction...');
+        console.log('🔧 Trying simplified extraction for actual video URL...');
         
         const fileId = this.extractFileId(teraboxUrl);
         if (!fileId) {
@@ -213,85 +213,263 @@ Your URL: ${url}`);
         
         console.log('📋 Extracted file ID:', fileId);
         
-        // For terabox.club URLs, try a different approach
+        // For terabox.club URLs, try to get the actual video stream URL
         if (teraboxUrl.includes('terabox.club')) {
-            // Try to convert the wap URL to a direct share URL
-            const directShareUrl = `https://www.terabox.club/s/${fileId}`;
-            console.log('🔗 Trying converted direct URL:', directShareUrl);
-            
-            // Return the converted URL for direct access
-            return {
-                videoUrl: directShareUrl,
-                title: 'Terabox Video (Direct Link)',
-                size: 0,
-                isDirectLink: true
-            };
+            try {
+                // Try to access the share page and extract real video URL
+                const shareUrl = `https://www.terabox.club/s/${fileId}`;
+                console.log('🔗 Accessing share URL to extract video:', shareUrl);
+                
+                if (this.workingProxy) {
+                    const response = await fetch(this.workingProxy + encodeURIComponent(shareUrl), {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const html = await response.text();
+                        console.log('📄 Got share page HTML, length:', html.length);
+                        
+                        // Look for actual video file URLs in the HTML
+                        const videoPatterns = [
+                            /https?:\/\/[^"\s]+\.mp4[^"\s]*/gi,
+                            /https?:\/\/[^"\s]+\.m3u8[^"\s]*/gi,
+                            /https?:\/\/d\d*\.terabox\.com\/[^"\s]+/gi,
+                            /https?:\/\/.*\.terabox\.com\/[^"\s]+\.(mp4|m3u8|mkv|avi)[^"\s]*/gi,
+                            /"dlink"\s*:\s*"([^"]+)"/gi,
+                            /"download_url"\s*:\s*"([^"]+)"/gi
+                        ];
+                        
+                        for (const pattern of videoPatterns) {
+                            const matches = html.match(pattern);
+                            if (matches && matches.length > 0) {
+                                for (const match of matches) {
+                                    const videoUrl = match.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"').replace(/\\\//g, '/');
+                                    if (videoUrl.includes('.mp4') || videoUrl.includes('.m3u8') || videoUrl.includes('d.terabox.com')) {
+                                        console.log('🎬 Found potential video stream URL:', videoUrl);
+                                        
+                                        // Test if the video URL is accessible
+                                        try {
+                                            const testResponse = await fetch(videoUrl, { method: 'HEAD' });
+                                            if (testResponse.ok) {
+                                                console.log('✅ Video URL is accessible!');
+                                                return {
+                                                    videoUrl: videoUrl,
+                                                    title: 'Terabox Video',
+                                                    size: parseInt(testResponse.headers.get('content-length')) || 0
+                                                };
+                                            }
+                                        } catch (e) {
+                                            console.log('❌ Video URL test failed:', e.message);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                throw new Error('Could not extract video stream URL from terabox.club');
+                
+            } catch (error) {
+                console.error('❌ Terabox.club extraction failed:', error.message);
+                throw error;
+            }
         }
         
         throw new Error('Simplified method only works for terabox.club currently');
     }
 
     async extractUsingDirectAccess(teraboxUrl) {
-        console.log('🎯 Trying direct access method...');
+        console.log('🎯 Trying direct access method with API endpoints...');
         
-        try {
-            // Try to access the URL directly (might work in some browsers)
-            const response = await fetch(teraboxUrl, {
-                method: 'GET',
-                mode: 'cors',
-                credentials: 'omit',
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            });
-            
-            console.log('📡 Direct access response status:', response.status);
-            
-            if (response.ok) {
-                const html = await response.text();
-                console.log('📄 Got HTML response, length:', html.length);
+        const fileId = this.extractFileId(teraboxUrl);
+        if (!fileId) {
+            throw new Error('Could not extract file ID for API access');
+        }
+        
+        // Try different API endpoints that might return video URLs directly
+        const apiEndpoints = [
+            `https://www.terabox.club/api/v1/share/link?surl=${fileId}`,
+            `https://www.terabox.club/share/getdownload?surl=${fileId}`,
+            `https://terabox.club/api/download?surl=${fileId}`,
+            `https://www.terabox.com/api/download?surl=${fileId}`,
+            // Try the original URL as fallback
+            teraboxUrl
+        ];
+        
+        for (const endpoint of apiEndpoints) {
+            try {
+                console.log('📡 Trying API endpoint:', endpoint);
                 
-                // Look for video URLs in the HTML
-                const videoUrlPatterns = [
-                    /https?:\/\/[^"\s]+\.mp4[^"\s]*/g,
-                    /https?:\/\/[^"\s]+\.m3u8[^"\s]*/g,
-                    /"dlink"\s*:\s*"([^"]+)"/,
-                    /"download_url"\s*:\s*"([^"]+)"/
-                ];
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Accept': 'application/json, text/html, */*',
+                        'Referer': 'https://www.terabox.club/',
+                        'Origin': 'https://www.terabox.club'
+                    }
+                });
                 
-                for (const pattern of videoUrlPatterns) {
-                    const matches = html.match(pattern);
-                    if (matches) {
-                        console.log('🎬 Found potential video URL:', matches[0]);
-                        return {
-                            videoUrl: matches[0].replace(/^"/, '').replace(/"$/, ''),
-                            title: 'Terabox Video',
-                            size: 0
-                        };
+                console.log('📡 Response status:', response.status, endpoint);
+                
+                if (response.ok) {
+                    const contentType = response.headers.get('content-type') || '';
+                    let data;
+                    
+                    if (contentType.includes('application/json')) {
+                        data = await response.json();
+                        console.log('📋 JSON Response:', data);
+                        
+                        // Look for video URL in JSON response
+                        if (data.dlink || data.download_url || data.url) {
+                            const videoUrl = data.dlink || data.download_url || data.url;
+                            console.log('🎬 Found video URL in JSON:', videoUrl);
+                            return {
+                                videoUrl: videoUrl,
+                                title: data.server_filename || data.filename || 'Terabox Video',
+                                size: data.size || 0
+                            };
+                        }
+                    } else {
+                        data = await response.text();
+                        console.log('📄 HTML/Text response length:', data.length);
+                        
+                        // Enhanced patterns for finding video URLs
+                        const videoPatterns = [
+                            /"dlink"\s*:\s*"([^"]+)"/gi,
+                            /"download_url"\s*:\s*"([^"]+)"/gi,
+                            /"file_url"\s*:\s*"([^"]+)"/gi,
+                            /https?:\/\/d\d*\.terabox\.com\/[^"\s<>]+/gi,
+                            /https?:\/\/[^"\s<>]+\.mp4[^"\s<>]*/gi,
+                            /https?:\/\/[^"\s<>]+\.m3u8[^"\s<>]*/gi,
+                            /window\.yunData\s*=\s*({[^}]+dlink[^}]+})/gi,
+                            /var\s+yunData\s*=\s*({[^}]+dlink[^}]+})/gi
+                        ];
+                        
+                        for (const pattern of videoPatterns) {
+                            const matches = [...data.matchAll(pattern)];
+                            if (matches.length > 0) {
+                                for (const match of matches) {
+                                    let videoUrl = match[1] || match[0];
+                                    
+                                    // Clean up the URL
+                                    videoUrl = videoUrl.replace(/\\"/g, '"').replace(/\\\//g, '/').replace(/^"/, '').replace(/"$/, '');
+                                    
+                                    if (videoUrl.includes('d.terabox.com') || videoUrl.includes('.mp4') || videoUrl.includes('.m3u8')) {
+                                        console.log('🎬 Found potential video URL:', videoUrl);
+                                        
+                                        // Test if URL is accessible
+                                        try {
+                                            const testResponse = await fetch(videoUrl, { method: 'HEAD' });
+                                            if (testResponse.ok || testResponse.status === 206) {  // 206 = partial content, also good
+                                                console.log('✅ Video URL verified as accessible');
+                                                return {
+                                                    videoUrl: videoUrl,
+                                                    title: 'Terabox Video',
+                                                    size: parseInt(testResponse.headers.get('content-length')) || 0
+                                                };
+                                            }
+                                        } catch (testError) {
+                                            console.log('❌ Video URL test failed:', testError.message);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+                
+            } catch (error) {
+                console.error('❌ API endpoint failed:', endpoint, error.message);
+                continue;
             }
-            
-            throw new Error('No video URL found in direct access');
-            
-        } catch (error) {
-            console.error('🚫 Direct access failed:', error.message);
-            throw error;
         }
+        
+        throw new Error('No accessible video URL found via direct access methods');
     }
 
     async extractUsingWorkingProxy(teraboxUrl) {
-        if (!this.workingProxy) {
-            throw new Error('No working CORS proxy available');
+        console.log('🌐 Trying working proxy with enhanced extraction...');
+        
+        // First try known working downloader APIs
+        const downloaderAPIs = [
+            {
+                name: 'TeraboxDownloader',
+                url: 'https://teraboxdownloader.online/api/get-download',
+                method: 'POST',
+                body: { url: teraboxUrl }
+            },
+            {
+                name: 'SaveFrom',
+                url: 'https://worker-savefrom.teraboxdownloader.workers.dev/',
+                method: 'POST', 
+                body: { url: teraboxUrl }
+            }
+        ];
+        
+        for (const api of downloaderAPIs) {
+            try {
+                console.log(`🔧 Trying ${api.name} API...`);
+                
+                const response = await fetch(api.url, {
+                    method: api.method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Origin': 'https://teraboxdownloader.online',
+                        'Referer': 'https://teraboxdownloader.online/'
+                    },
+                    body: JSON.stringify(api.body)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log(`📋 ${api.name} response:`, data);
+                    
+                    if (data.success && data.download_url) {
+                        console.log(`✅ ${api.name} returned video URL:`, data.download_url);
+                        return {
+                            videoUrl: data.download_url,
+                            title: data.title || data.filename || 'Terabox Video',
+                            size: data.size || 0
+                        };
+                    }
+                    
+                    if (data.dlink || data.url) {
+                        const videoUrl = data.dlink || data.url;
+                        console.log(`✅ ${api.name} returned video URL:`, videoUrl);
+                        return {
+                            videoUrl: videoUrl,
+                            title: data.server_filename || data.filename || 'Terabox Video',
+                            size: data.size || 0
+                        };
+                    }
+                }
+                
+            } catch (error) {
+                console.warn(`❌ ${api.name} API failed:`, error.message);
+                continue;
+            }
         }
         
-        console.log('🌐 Using working proxy:', this.workingProxy);
+        // Fallback to proxy method
+        if (!this.workingProxy) {
+            throw new Error('No working CORS proxy available and API methods failed');
+        }
+        
+        console.log('🌐 Using working proxy as fallback:', this.workingProxy);
         
         try {
             const response = await fetch(this.workingProxy + encodeURIComponent(teraboxUrl), {
                 method: 'GET',
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5'
                 }
             });
             
@@ -302,26 +480,53 @@ Your URL: ${url}`);
             const html = await response.text();
             console.log('📄 Proxy got HTML, length:', html.length);
             
-            // Simple pattern matching for video URLs
+            // Enhanced pattern matching for video URLs
             const patterns = [
-                /"dlink":\s*"([^"]+)"/,
-                /"download_url":\s*"([^"]+)"/,
-                /https?:\/\/[^"\s]+\.mp4[^"\s]*/,
-                /https?:\/\/d\.terabox\.com[^"\s]+/,
-                /https?:\/\/.*terabox.*\.com\/[^"\s]+/
+                // JSON patterns
+                /"dlink"\s*:\s*"([^"]+)"/gi,
+                /"download_url"\s*:\s*"([^"]+)"/gi,
+                /"file_url"\s*:\s*"([^"]+)"/gi,
+                // Direct URL patterns
+                /https?:\/\/d\d*\.terabox\.com\/[^"\s<>]+/gi,
+                /https?:\/\/[^"\s<>]+\.mp4(\?[^"\s<>]*)?/gi,
+                /https?:\/\/[^"\s<>]+\.m3u8(\?[^"\s<>]*)?/gi,
+                // JavaScript variable patterns
+                /window\.yunData\s*=\s*.*?"dlink"\s*:\s*"([^"]+)"/gi,
+                /var\s+yunData\s*=\s*.*?"dlink"\s*:\s*"([^"]+)"/gi
             ];
             
             for (const pattern of patterns) {
-                const match = html.match(pattern);
-                if (match) {
-                    const videoUrl = match[1] || match[0];
-                    console.log('🎬 Found video URL via proxy:', videoUrl);
-                    
-                    return {
-                        videoUrl: videoUrl.replace(/\\"/g, '"').replace(/\\\//g, '/'),
-                        title: 'Terabox Video',
-                        size: 0
-                    };
+                const matches = [...html.matchAll(pattern)];
+                if (matches.length > 0) {
+                    for (const match of matches) {
+                        let videoUrl = match[1] || match[0];
+                        
+                        // Clean up the URL
+                        videoUrl = videoUrl.replace(/\\"/g, '"').replace(/\\\//g, '/').replace(/^"/, '').replace(/"$/, '');
+                        
+                        if (videoUrl && (videoUrl.includes('d.terabox.com') || videoUrl.includes('.mp4') || videoUrl.includes('.m3u8'))) {
+                            console.log('🎬 Found potential video URL via proxy:', videoUrl);
+                            
+                            // Verify URL accessibility
+                            try {
+                                const testResponse = await fetch(videoUrl, { 
+                                    method: 'HEAD',
+                                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                                });
+                                
+                                if (testResponse.ok || testResponse.status === 206) {
+                                    console.log('✅ Proxy-found video URL verified as accessible');
+                                    return {
+                                        videoUrl: videoUrl,
+                                        title: 'Terabox Video',
+                                        size: parseInt(testResponse.headers.get('content-length')) || 0
+                                    };
+                                }
+                            } catch (testError) {
+                                console.log('❌ Proxy-found URL test failed:', testError.message);
+                            }
+                        }
+                    }
                 }
             }
             
@@ -697,80 +902,64 @@ Your URL: ${url}`);
     }
 
     async playVideo(videoData) {
-        // Handle direct links differently
-        if (videoData.isDirectLink) {
-            console.log('🔗 Handling direct link:', videoData.videoUrl);
-            this.videoTitle.textContent = videoData.title;
-            this.videoDescription.textContent = `Click the link below to open in a new tab:`;
-            
-            // Create a link button instead of video player
-            this.videoPlayer.style.display = 'none';
-            
-            let linkContainer = document.getElementById('directLinkContainer');
-            if (!linkContainer) {
-                linkContainer = document.createElement('div');
-                linkContainer.id = 'directLinkContainer';
-                linkContainer.style.cssText = `
-                    text-align: center;
-                    padding: 2rem;
-                    background: rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
-                    margin: 1rem 0;
-                `;
-                this.videoPlayer.parentNode.insertBefore(linkContainer, this.videoPlayer.nextSibling);
-            }
-            
-            linkContainer.innerHTML = `
-                <a href="${videoData.videoUrl}" target="_blank" rel="noopener noreferrer" 
-                   style="
-                       display: inline-block;
-                       padding: 1rem 2rem;
-                       background: linear-gradient(45deg, #ff6b6b, #feca57);
-                       color: white;
-                       text-decoration: none;
-                       border-radius: 12px;
-                       font-weight: 600;
-                       font-size: 1.1rem;
-                       box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
-                       transition: all 0.3s ease;
-                   "
-                   onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(255, 107, 107, 0.6)';"
-                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(255, 107, 107, 0.4)';">
-                    🎬 Open Terabox Video
-                </a>
-                <p style="margin-top: 1rem; opacity: 0.8; font-size: 0.9rem;">
-                    Note: This will open the original Terabox page. You may need to click through any ads there.
-                </p>
-            `;
-        } else {
-            // Normal video playback
-            const linkContainer = document.getElementById('directLinkContainer');
-            if (linkContainer) {
-                linkContainer.style.display = 'none';
-            }
-            this.videoPlayer.style.display = 'block';
-            
-            console.log('🎬 Setting video source:', videoData.videoUrl);
-            this.videoPlayer.src = videoData.videoUrl;
-            this.videoTitle.textContent = videoData.title;
-            this.videoDescription.textContent = `Ready to stream${videoData.size ? ` • ${this.formatFileSize(videoData.size)}` : ''}`;
-            
-            // Add error handling for video loading
-            this.videoPlayer.onerror = (e) => {
-                console.error('❌ Video load error:', e);
-                this.showError('Failed to load video. The video may be private, expired, or require direct access via Terabox.');
-            };
-
-            this.videoPlayer.onloadedmetadata = () => {
-                console.log('✅ Video metadata loaded successfully');
-                this.videoTitle.textContent = videoData.title;
-                this.videoDescription.textContent = `Duration: ${this.formatDuration(this.videoPlayer.duration)}${videoData.size ? ` • ${this.formatFileSize(videoData.size)}` : ''}`;
-            };
-
-            this.videoPlayer.onloadstart = () => {
-                console.log('📡 Video loading started...');
-            };
+        // Always try to stream the video directly
+        const linkContainer = document.getElementById('directLinkContainer');
+        if (linkContainer) {
+            linkContainer.style.display = 'none';
         }
+        this.videoPlayer.style.display = 'block';
+        
+        console.log('🎬 Setting video source:', videoData.videoUrl);
+        this.videoPlayer.src = videoData.videoUrl;
+        this.videoTitle.textContent = videoData.title;
+        this.videoDescription.textContent = `Ready to stream${videoData.size ? ` • ${this.formatFileSize(videoData.size)}` : ''}`;
+        
+        // Add comprehensive error handling for video loading
+        this.videoPlayer.onerror = (e) => {
+            console.error('❌ Video load error:', e);
+            console.error('❌ Video error code:', this.videoPlayer.error?.code);
+            console.error('❌ Video error message:', this.videoPlayer.error?.message);
+            
+            let errorMessage = 'Failed to load video. ';
+            if (this.videoPlayer.error) {
+                switch (this.videoPlayer.error.code) {
+                    case 1:
+                        errorMessage += 'The video download was aborted.';
+                        break;
+                    case 2:
+                        errorMessage += 'Network error occurred.';
+                        break;
+                    case 3:
+                        errorMessage += 'The video is corrupted or not supported.';
+                        break;
+                    case 4:
+                        errorMessage += 'The video URL is not accessible or invalid.';
+                        break;
+                    default:
+                        errorMessage += 'Unknown error occurred.';
+                }
+            }
+            
+            this.showError(errorMessage + ' Please try a different URL or check if the video is still available.');
+        };
+
+        this.videoPlayer.onloadedmetadata = () => {
+            console.log('✅ Video metadata loaded successfully');
+            this.videoTitle.textContent = videoData.title;
+            this.videoDescription.textContent = `Duration: ${this.formatDuration(this.videoPlayer.duration)}${videoData.size ? ` • ${this.formatFileSize(videoData.size)}` : ''}`;
+        };
+
+        this.videoPlayer.onloadstart = () => {
+            console.log('📡 Video loading started...');
+        };
+        
+        this.videoPlayer.oncanplay = () => {
+            console.log('✅ Video can start playing');
+        };
+        
+        this.videoPlayer.oncanplaythrough = () => {
+            console.log('✅ Video can play through without buffering');
+        };
 
         // Scroll to video section
         this.videoSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
